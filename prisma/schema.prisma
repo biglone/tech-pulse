@@ -1,0 +1,113 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                   String                @id @default(cuid())
+  email                String                @unique
+  name                 String?
+  passwordHash         String
+  createdAt            DateTime              @default(now())
+  sources              Source[]              @relation("UserOwnedSources")
+  subscriptions        UserSource[]
+  favorites            Favorite[]
+  notificationSettings NotificationSettings?
+  sessions             Session[]
+}
+
+model Source {
+  id            String      @id @default(cuid())
+  name          String
+  type          String
+  url           String?
+  handle        String?
+  tags          String?
+  active        Boolean     @default(true)
+  requiresAuth  Boolean     @default(false)
+  weight        Float       @default(1.0)
+  lastFetchedAt DateTime?
+  createdAt     DateTime    @default(now())
+  ownerId       String?
+  owner         User?       @relation("UserOwnedSources", fields: [ownerId], references: [id])
+  items         Item[]
+  subscribers   UserSource[]
+
+  @@index([ownerId])
+}
+
+model UserSource {
+  id        String   @id @default(cuid())
+  userId    String
+  sourceId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  source    Source   @relation(fields: [sourceId], references: [id])
+
+  @@unique([userId, sourceId])
+}
+
+model Item {
+  id           String     @id @default(cuid())
+  sourceId     String
+  source       Source     @relation(fields: [sourceId], references: [id])
+  title        String
+  url          String
+  canonicalUrl String?
+  urlHash      String     @unique
+  summary      String?
+  summaryZh    String?
+  content      String?
+  publishedAt  DateTime?
+  fetchedAt    DateTime   @default(now())
+  tags         String?
+  language     String?
+  score        Float      @default(0)
+  engagement   Int?
+  comments     Int?
+  favorites    Favorite[]
+
+  @@index([publishedAt])
+  @@index([score])
+  @@index([sourceId])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  itemId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  item      Item     @relation(fields: [itemId], references: [id])
+
+  @@unique([userId, itemId])
+}
+
+model NotificationSettings {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  emailEnabled     Boolean  @default(false)
+  emailAddress     String?
+  telegramEnabled  Boolean  @default(false)
+  telegramBotToken String?
+  telegramChatId   String?
+  digestSchedule   String?
+  lastSentAt       DateTime?
+  user             User     @relation(fields: [userId], references: [id])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+}

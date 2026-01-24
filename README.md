@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# TechPulse
 
-## Getting Started
+TechPulse is a global tech signal radar. It aggregates RSS + community feeds, deduplicates noise, tags by topic, and keeps a hot-ranked feed with favorites and notifications.
 
-First, run the development server:
+## Features
+
+- RSS/Medium/Substack feeds + Hacker News + Reddit ingestion
+- X (Twitter) + YouTube ingestion when API keys are configured
+- Tag extraction, deduplication, and hot ranking
+- Search + filters + favorites
+- Multi-user auth with per-user subscriptions
+- Email + Telegram digest (manual trigger)
+
+## Tech stack
+
+- Next.js (App Router) + Tailwind CSS
+- Prisma + SQLite (local) — swap to Postgres for Vercel
+- NextAuth (credentials)
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.example .env
+pnpm db:push
+pnpm db:seed
+pnpm ingest
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Useful commands
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+```bash
+pnpm worker   # run scheduled ingestion
+pnpm ingest   # one-off ingest
+pnpm digest   # send notification digest to email/Telegram
+pnpm db:studio
+```
 
-## Learn More
+## API keys
 
-To learn more about Next.js, take a look at the following resources:
+Edit `.env` to enable additional sources and AI summaries:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `X_BEARER_TOKEN`
+- `YOUTUBE_API_KEY`
+- `OPENAI_API_KEY` + `ENABLE_AI_SUMMARY=true`
+- `EMAIL_SMTP_*` and `EMAIL_FROM`
+- `TELEGRAM_BOT_TOKEN`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+## Deploy notes
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+- For Vercel, switch Prisma to Postgres and set `DATABASE_URL`.
+- Run `pnpm db:migrate` for a migration-based workflow.
