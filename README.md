@@ -30,6 +30,45 @@ pnpm dev
 
 Open `http://localhost:3000`.
 
+## Docker
+
+Containerized development:
+
+```bash
+cp .env.docker.example .env.docker
+docker compose -f docker-compose.dev.yml up --build
+```
+
+This starts the app plus the ingestion worker. To send a digest on demand:
+
+```bash
+docker compose -f docker-compose.dev.yml --profile digest run --rm digest
+```
+
+Initialize the database (first run or after schema changes):
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm app pnpm db:push
+docker compose -f docker-compose.dev.yml run --rm app pnpm db:seed
+```
+
+Production container:
+
+```bash
+cp .env.docker.example .env.docker
+docker compose up --build -d
+docker compose run --rm app pnpm db:push
+docker compose run --rm app pnpm db:seed
+```
+
+The production stack starts the app plus the ingestion worker. For a one-off digest run:
+
+```bash
+docker compose --profile digest run --rm digest
+```
+
+Data is stored in the `tech-pulse-data` volume. Edit `.env.docker` to adjust secrets and API keys.
+
 ## Useful commands
 
 ```bash

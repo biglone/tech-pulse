@@ -1,0 +1,56 @@
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.docker
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+      PNPM_STORE_DIR: /pnpm-store
+    volumes:
+      - .:/app
+      - tech-pulse-node_modules:/app/node_modules
+      - tech-pulse-data:/data
+      - tech-pulse-pnpm-store:/pnpm-store
+    command: sh -c "pnpm install && pnpm exec next dev --hostname 0.0.0.0"
+  worker:
+    build:
+      context: .
+      target: dev
+    env_file:
+      - .env.docker
+    environment:
+      NODE_ENV: development
+      PNPM_STORE_DIR: /pnpm-store
+    volumes:
+      - .:/app
+      - tech-pulse-node_modules:/app/node_modules
+      - tech-pulse-data:/data
+      - tech-pulse-pnpm-store:/pnpm-store
+    command: sh -c "while [ ! -x node_modules/.bin/tsx ] || ! ls node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/default.js >/dev/null 2>&1; do sleep 1; done; pnpm worker"
+  digest:
+    build:
+      context: .
+      target: dev
+    env_file:
+      - .env.docker
+    environment:
+      NODE_ENV: development
+      PNPM_STORE_DIR: /pnpm-store
+    volumes:
+      - .:/app
+      - tech-pulse-node_modules:/app/node_modules
+      - tech-pulse-data:/data
+      - tech-pulse-pnpm-store:/pnpm-store
+    profiles:
+      - digest
+    command: sh -c "while [ ! -x node_modules/.bin/tsx ] || ! ls node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/default.js >/dev/null 2>&1; do sleep 1; done; pnpm digest"
+
+volumes:
+  tech-pulse-data:
+  tech-pulse-node_modules:
+  tech-pulse-pnpm-store:

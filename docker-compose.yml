@@ -1,0 +1,42 @@
+services:
+  app:
+    build:
+      context: .
+      target: runner
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.docker
+    environment:
+      NODE_ENV: production
+    volumes:
+      - tech-pulse-data:/data
+    restart: unless-stopped
+  worker:
+    build:
+      context: .
+      target: worker
+    env_file:
+      - .env.docker
+    environment:
+      NODE_ENV: production
+    volumes:
+      - tech-pulse-data:/data
+    restart: unless-stopped
+    command: ["pnpm", "worker"]
+  digest:
+    build:
+      context: .
+      target: worker
+    env_file:
+      - .env.docker
+    environment:
+      NODE_ENV: production
+    volumes:
+      - tech-pulse-data:/data
+    profiles:
+      - digest
+    command: ["pnpm", "digest"]
+
+volumes:
+  tech-pulse-data:
