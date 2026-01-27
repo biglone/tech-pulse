@@ -20,6 +20,7 @@
 # misc
 .DS_Store
 *.pem
+tts/voices/*.wav
 
 # debug
 npm-debug.log*

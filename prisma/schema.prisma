@@ -62,6 +62,10 @@ model Item {
   summary      String?
   summaryZh    String?
   content      String?
+  audioPath    String?
+  audioMime    String?
+  audioTextHash String?
+  audioUpdatedAt DateTime?
   publishedAt  DateTime?
   fetchedAt    DateTime   @default(now())
   tags         String?

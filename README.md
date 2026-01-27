@@ -85,8 +85,32 @@ Edit `.env` to enable additional sources and AI summaries:
 - `X_BEARER_TOKEN`
 - `YOUTUBE_API_KEY`
 - `OPENAI_API_KEY` + `ENABLE_AI_SUMMARY=true`
+- `OPENAI_API_KEY` + `ENABLE_AI_AUDIO=true` (optional `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`)
 - `EMAIL_SMTP_*` and `EMAIL_FROM`
 - `TELEGRAM_BOT_TOKEN`
+
+## Local TTS (XTTS-v2)
+
+Run offline text-to-speech with the bundled Coqui XTTS service.
+
+- Place speaker samples at `tts/voices/en.wav` and `tts/voices/zh.wav` (10-30 seconds, clean audio).
+- Set `ENABLE_AI_AUDIO=true`, `AUDIO_PROVIDER=coqui`, and confirm `TTS_BASE_URL=http://tts:5002`.
+- Optional tuning: `TTS_MODEL_NAME`, `TTS_USE_CUDA`, `TTS_REQUEST_TIMEOUT_MS`.
+- For GPU acceleration, install NVIDIA Container Toolkit on the host and keep `TTS_USE_CUDA=true`.
+- Apple Silicon devs: set `TTS_PLATFORM=linux/amd64` (default) to pull the x86_64 Coqui image; Jetson should override with a compatible image via `TTS_IMAGE`.
+
+### Jetson build (ARM64)
+
+Build a Jetson-compatible TTS image locally and point `TTS_IMAGE` at it:
+
+```bash
+docker build -f tts/Dockerfile.jetson -t tech-pulse-tts:jetson \
+  --build-arg BASE_IMAGE=nvcr.io/nvidia/l4t-pytorch:r36.2.0-pth2.1-py3 tts
+```
+
+Then set `TTS_IMAGE=tech-pulse-tts:jetson` and `TTS_PLATFORM=linux/arm64`.
+- Dev: `docker compose -f docker-compose.dev.yml --profile tts up`
+- Prod: `docker compose up` (includes `tts` by default).
 
 ## Deploy notes
 

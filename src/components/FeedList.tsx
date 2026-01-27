@@ -1,5 +1,6 @@
 import { Item, Source } from '@prisma/client';
 import { FavoriteButton } from '@/components/FavoriteButton';
+import { AudioPlayer } from '@/components/AudioPlayer';
 
 export type FeedItem = Item & { source: Source };
 
@@ -40,6 +41,7 @@ export function FeedList({ items, favoriteIds }: FeedListProps) {
               <p className="mt-2 text-sm text-[var(--accent-2)]">{item.summaryZh}</p>
             )}
           </a>
+          <AudioPlayer itemId={item.id} />
           <div className="flex flex-wrap gap-2">
             {item.tags
               ?.split(',')
