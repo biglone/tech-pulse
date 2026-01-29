@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import Parser from 'rss-parser';
 import { prisma } from '@/lib/prisma';
 import { summarizeAndTranslate } from '@/lib/ai';
+import { fetchJsonWithProxy, fetchTextWithProxy } from '@/lib/proxy';
 import { Source } from '@prisma/client';
 
 type IngestItem = {
@@ -158,7 +159,17 @@ async function fetchSourceItems(source: Source): Promise<IngestItem[]> {
 
 async function fetchRssItems(url?: string | null): Promise<IngestItem[]> {
   if (!url) return [];
-  const feed = await parser.parseURL(url);
+  const xml = await fetchTextWithProxy(
+    url,
+    {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (TechPulse RSS)',
+        Accept: 'application/rss+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    },
+    15000
+  );
+  const feed = await parser.parseString(xml);
   return (feed.items ?? []).map((item) => {
     const encoded = (item as unknown as Record<string, unknown>)['content:encoded'];
     const rawContent = typeof encoded === 'string' ? encoded : item.content ?? item.summary;
@@ -175,10 +186,7 @@ async function fetchRssItems(url?: string | null): Promise<IngestItem[]> {
 }
 
 async function fetchHackerNewsItems(): Promise<IngestItem[]> {
-  const response = await fetch(
-    'https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=50'
-  );
-  const data = (await response.json()) as {
+  const data = await fetchJsonWithProxy<{
     hits: Array<{
       title: string;
       url: string;
@@ -187,7 +195,7 @@ async function fetchHackerNewsItems(): Promise<IngestItem[]> {
       points: number;
       num_comments: number;
     }>;
-  };
+  }>('https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=50');
 
   return data.hits.map((hit) => ({
     title: hit.title,
@@ -202,19 +210,15 @@ async function fetchHackerNewsItems(): Promise<IngestItem[]> {
 }
 
 async function fetchRedditItems(subreddit: string): Promise<IngestItem[]> {
-  const response = await fetch(
-    `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/new.json?limit=50`,
-    {
-      headers: {
-        'User-Agent': 'TechPulse/0.1 (+https://localhost)',
-      },
-    }
-  );
-  const data = (await response.json()) as {
+  const data = await fetchJsonWithProxy<{
     data: {
       children: Array<{ data: Record<string, unknown> }>;
     };
-  };
+  }>(`https://www.reddit.com/r/${encodeURIComponent(subreddit)}/new.json?limit=50`, {
+    headers: {
+      'User-Agent': 'TechPulse/0.1 (+https://tech-pulse.biglone.tech)',
+    },
+  });
 
   return data.data.children
     .map((child) => child.data)
@@ -236,25 +240,21 @@ async function fetchXItems(query: string): Promise<IngestItem[]> {
   const token = process.env.X_BEARER_TOKEN;
   if (!token) return [];
 
-  const response = await fetch(
-    `https://api.twitter.com/2/tweets/search/recent?query=${encodeURIComponent(query)}&max_results=25&tweet.fields=created_at,public_metrics`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
-
-  if (!response.ok) return [];
-
-  const data = (await response.json()) as {
+  const data = await fetchJsonWithProxy<{
     data?: Array<{
       id: string;
       text: string;
       created_at?: string;
       public_metrics?: { like_count: number; retweet_count: number; reply_count: number };
     }>;
-  };
+  }>(
+    `https://api.twitter.com/2/tweets/search/recent?query=${encodeURIComponent(query)}&max_results=25&tweet.fields=created_at,public_metrics`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  ).catch(() => ({ data: [] }));
 
   return (data.data ?? []).map((tweet) => ({
     title: tweet.text.split('\n')[0].slice(0, 120),
@@ -274,18 +274,14 @@ async function fetchYouTubeItems(query: string): Promise<IngestItem[]> {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) return [];
 
-  const response = await fetch(
-    `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=25&q=${encodeURIComponent(query)}&type=video&key=${apiKey}`
-  );
-
-  if (!response.ok) return [];
-
-  const data = (await response.json()) as {
+  const data = await fetchJsonWithProxy<{
     items: Array<{
       id: { videoId: string };
       snippet: { title: string; description: string; publishedAt: string };
     }>;
-  };
+  }>(
+    `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=25&q=${encodeURIComponent(query)}&type=video&key=${apiKey}`
+  ).catch(() => ({ items: [] }));
 
   return data.items.map((item) => ({
     title: item.snippet.title,

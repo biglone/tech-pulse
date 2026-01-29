@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { fetchWithProxy } from '@/lib/proxy';
 
 type EmailPayload = {
   to: string;
@@ -41,7 +42,7 @@ export async function sendEmail(payload: EmailPayload) {
 }
 
 export async function sendTelegram(payload: TelegramPayload) {
-  const response = await fetch(`https://api.telegram.org/bot${payload.token}/sendMessage`, {
+  const response = await fetchWithProxy(`https://api.telegram.org/bot${payload.token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

@@ -1,3 +1,5 @@
+import { fetchWithProxy } from '@/lib/proxy';
+
 type SummaryResult = {
   summary?: string;
   summaryZh?: string;
@@ -37,7 +39,7 @@ export async function summarizeAndTranslate({
     temperature: 0.3,
   };
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
