@@ -32,6 +32,20 @@ export const DEFAULT_SOURCES: DefaultSource[] = [
     weight: 1.0,
   },
   {
+    name: 'Linux Do (Develop)',
+    type: 'RSS',
+    url: 'https://linux.do/c/develop/4.rss',
+    tags: 'Community,Engineering',
+    weight: 0.9,
+  },
+  {
+    name: 'V2EX Tech',
+    type: 'RSS',
+    url: 'https://www.v2ex.com/feed/tab/tech.xml',
+    tags: 'Community,China',
+    weight: 0.9,
+  },
+  {
     name: 'The Verge',
     type: 'RSS',
     url: 'https://www.theverge.com/rss/index.xml',
@@ -78,14 +92,48 @@ export const DEFAULT_SOURCES: DefaultSource[] = [
 ];
 
 export async function ensureDefaultSources(prisma: PrismaClient) {
-  const existing = await prisma.source.count();
-  if (existing > 0) {
-    return { created: 0, total: existing };
-  }
-
-  await prisma.source.createMany({
-    data: DEFAULT_SOURCES,
+  const existingSources = await prisma.source.findMany({
+    select: {
+      type: true,
+      url: true,
+      handle: true,
+      name: true,
+    },
   });
 
-  return { created: DEFAULT_SOURCES.length, total: DEFAULT_SOURCES.length };
+  const normalize = (value: string) => value.trim().toLowerCase();
+  const key = (kind: 'url' | 'handle' | 'name', type: string, value: string) =>
+    `${kind}:${type}:${normalize(value)}`;
+
+  const existingUrl = new Set(
+    existingSources
+      .filter((source) => source.url)
+      .map((source) => key('url', source.type, source.url!)),
+  );
+  const existingHandle = new Set(
+    existingSources
+      .filter((source) => source.handle)
+      .map((source) => key('handle', source.type, source.handle!)),
+  );
+  const existingName = new Set(
+    existingSources.map((source) => key('name', source.type, source.name)),
+  );
+
+  const toCreate = DEFAULT_SOURCES.filter((source) => {
+    if (source.url) {
+      return !existingUrl.has(key('url', source.type, source.url));
+    }
+    if (source.handle) {
+      return !existingHandle.has(key('handle', source.type, source.handle));
+    }
+    return !existingName.has(key('name', source.type, source.name));
+  });
+
+  if (toCreate.length > 0) {
+    await prisma.source.createMany({
+      data: toCreate,
+    });
+  }
+
+  return { created: toCreate.length, total: existingSources.length + toCreate.length };
 }
