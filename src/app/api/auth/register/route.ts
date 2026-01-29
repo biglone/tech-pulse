@@ -39,6 +39,15 @@ async function readRegisterPayload(request: Request): Promise<{
 }
 
 function resolveRedirect(request: Request, path: string) {
+  const baseUrl = process.env.PUBLIC_BASE_URL ?? process.env.NEXTAUTH_URL;
+  if (baseUrl) {
+    return new URL(path, baseUrl);
+  }
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  if (forwardedProto && forwardedHost) {
+    return new URL(path, `${forwardedProto}://${forwardedHost}`);
+  }
   return new URL(path, new URL(request.url).origin);
 }
 

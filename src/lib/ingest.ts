@@ -156,11 +156,12 @@ async function fetchSourceItems(source: Source): Promise<IngestItem[]> {
   }
 }
 
-async function fetchRssItems(url?: string): Promise<IngestItem[]> {
+async function fetchRssItems(url?: string | null): Promise<IngestItem[]> {
   if (!url) return [];
   const feed = await parser.parseURL(url);
   return (feed.items ?? []).map((item) => {
-    const rawContent = (item as Record<string, string>)['content:encoded'] ?? item.content ?? item.summary;
+    const encoded = (item as unknown as Record<string, unknown>)['content:encoded'];
+    const rawContent = typeof encoded === 'string' ? encoded : item.content ?? item.summary;
     return {
       title: item.title ?? 'Untitled',
       url: item.link ?? item.guid ?? url,
@@ -342,7 +343,7 @@ function cleanText(value: string): string {
 }
 
 function detectLanguage(text: string): string | undefined {
-  if (/\p{Script=Han}/u.test(text)) return 'zh';
+  if (/[\u4E00-\u9FFF]/.test(text)) return 'zh';
   if (/[A-Za-z]/.test(text)) return 'en';
   return undefined;
 }

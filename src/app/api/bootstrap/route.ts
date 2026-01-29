@@ -18,13 +18,27 @@ export async function POST() {
   });
 
   if (sources.length > 0) {
-    await prisma.userSource.createMany({
-      data: sources.map((source) => ({
+    const sourceIds = sources.map((source) => source.id);
+    const existing = await prisma.userSource.findMany({
+      where: {
+        userId: user.id,
+        sourceId: { in: sourceIds },
+      },
+      select: { sourceId: true },
+    });
+    const existingIds = new Set(existing.map((row) => row.sourceId));
+    const newSubscriptions = sources
+      .filter((source) => !existingIds.has(source.id))
+      .map((source) => ({
         userId: user.id,
         sourceId: source.id,
-      })),
-      skipDuplicates: true,
-    });
+      }));
+
+    if (newSubscriptions.length > 0) {
+      await prisma.userSource.createMany({
+        data: newSubscriptions,
+      });
+    }
   }
 
   const ingestResult = await ingestAllSources();

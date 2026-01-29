@@ -1,22 +1,127 @@
-ARG BASE_IMAGE=nvcr.io/nvidia/l4t-pytorch:r36.2.0-pth2.1-py3
-
-FROM ${BASE_IMAGE}
+FROM nvcr.io/nvidia/l4t-base:r36.2.0
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONUNBUFFERED=1 \
-    TTS_HOME=/root/.local/share/tts
+    COQUI_TOS_AGREED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    espeak-ng \
-    libespeak-ng1 \
-    libsndfile1 \
+    python3-pip \
+    python3-dev \
+    build-essential \
+    git \
     ffmpeg \
+    libsndfile1 \
+    libglib2.0-0 \
+    libgl1 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install --upgrade pip && \
-    pip install "TTS==0.22.0"
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
+RUN python3 -m pip install --no-cache-dir torch==2.10.0 torchaudio==2.10.0
+
+COPY tts/requirements-jetson.txt /tmp/requirements-jetson.txt
+RUN python3 -m pip install --no-cache-dir -r /tmp/requirements-jetson.txt
+RUN python3 -m pip install --no-cache-dir TTS==0.22.0 --no-deps
+RUN python3 - <<'PY'
+from pathlib import Path
+
+manage_path = Path('/usr/local/lib/python3.10/dist-packages/TTS/utils/manage.py')
+manage_text = manage_path.read_text(encoding='utf-8')
+manage_text = manage_text.replace('and "xtts" not in model_name', '')
+find_line = '            output_model_path, output_config_path = self._find_files(output_path)\n'
+find_block = (
+    '            if "xtts" in model_name:\n'
+    '                output_config_path = self._find_files(output_path)[1]\n'
+    '            else:\n'
+    '                output_model_path, output_config_path = self._find_files(output_path)\n'
+)
+if find_block not in manage_text:
+    manage_text = manage_text.replace(find_line, find_block)
+manage_path.write_text(manage_text, encoding='utf-8')
+
+io_path = Path('/usr/local/lib/python3.10/dist-packages/TTS/utils/io.py')
+io_text = io_path.read_text(encoding='utf-8')
+io_marker = '    is_local = os.path.isdir(path) or os.path.isfile(path)\n'
+io_insert = io_marker + '    if "weights_only" not in kwargs:\n        kwargs["weights_only"] = False\n\n'
+if 'weights_only' not in io_text:
+    io_text = io_text.replace(io_marker, io_insert)
+io_path.write_text(io_text, encoding='utf-8')
+
+server_path = Path('/usr/local/lib/python3.10/dist-packages/TTS/server/server.py')
+server_text = server_path.read_text(encoding='utf-8')
+old_block = (
+    '        text = request.headers.get("text") or request.values.get("text", "")\n'
+    '        speaker_idx = request.headers.get("speaker-id") or request.values.get("speaker_id", "")\n'
+    '        language_idx = request.headers.get("language-id") or request.values.get("language_id", "")\n'
+    '        style_wav = request.headers.get("style-wav") or request.values.get("style_wav", "")\n'
+    '        style_wav = style_wav_uri_to_dict(style_wav)\n\n'
+    '        print(f" > Model input: {text}")\n'
+    '        print(f" > Speaker Idx: {speaker_idx}")\n'
+    '        print(f" > Language Idx: {language_idx}")\n'
+    '        wavs = synthesizer.tts(text, speaker_name=speaker_idx, language_name=language_idx, style_wav=style_wav)\n'
+)
+new_block = (
+    '        payload = request.get_json(silent=True) or {}\n'
+    '        text = request.headers.get("text") or payload.get("text") or request.values.get("text", "")\n'
+    '        speaker_idx = request.headers.get("speaker-id") or payload.get("speaker_id") or request.values.get("speaker_id", "")\n'
+    '        language_idx = (\n'
+    '            request.headers.get("language-id")\n'
+    '            or payload.get("language_id")\n'
+    '            or payload.get("language")\n'
+    '            or request.values.get("language_id", "")\n'
+    '            or request.values.get("language", "")\n'
+    '        )\n'
+    '        speed = payload.get("speed") or request.values.get("speed", "")\n'
+    '        try:\n'
+    '            speed = float(speed) if speed not in ("", None) else None\n'
+    '        except (TypeError, ValueError):\n'
+    '            speed = None\n'
+    '        speaker_wav = request.headers.get("speaker-wav") or payload.get("speaker_wav") or request.values.get("speaker_wav", "")\n'
+    '        style_wav = request.headers.get("style-wav") or payload.get("style_wav") or request.values.get("style_wav", "")\n'
+    '        style_wav = style_wav_uri_to_dict(style_wav)\n\n'
+    '        print(f" > Model input: {text}")\n'
+    '        print(f" > Speaker Idx: {speaker_idx}")\n'
+    '        print(f" > Language Idx: {language_idx}")\n'
+    '        if not speaker_idx:\n'
+    '            speaker_idx = None\n'
+    '        if not speaker_wav:\n'
+    '            speaker_wav = None\n'
+    '        tts_kwargs = {}\n'
+    '        if speed is not None:\n'
+    '            tts_kwargs["speed"] = speed\n'
+    '        wavs = synthesizer.tts(\n'
+    '            text,\n'
+    '            speaker_name=speaker_idx,\n'
+    '            language_name=language_idx,\n'
+    '            speaker_wav=speaker_wav,\n'
+    '            style_wav=style_wav,\n'
+    '            **tts_kwargs,\n'
+    '        )\n'
+)
+if old_block in server_text:
+    server_text = server_text.replace(old_block, new_block)
+server_path.write_text(server_text, encoding='utf-8')
+
+xtts_path = Path('/usr/local/lib/python3.10/dist-packages/TTS/tts/models/xtts.py')
+xtts_text = xtts_path.read_text(encoding='utf-8')
+xtts_old = (
+    '    # torchaudio should chose proper backend to load audio depending on platform\n'
+    '    audio, lsr = torchaudio.load(audiopath)\n'
+)
+xtts_new = (
+    '    # torchaudio should chose proper backend to load audio depending on platform\n'
+    '    try:\n'
+    '        audio, lsr = torchaudio.load(audiopath)\n'
+    '    except Exception:\n'
+    '        import soundfile as sf\n'
+    '        data, lsr = sf.read(audiopath, always_2d=True)\n'
+    '        audio = torch.from_numpy(data.T).float()\n'
+)
+if xtts_old in xtts_text:
+    xtts_text = xtts_text.replace(xtts_old, xtts_new)
+xtts_path.write_text(xtts_text, encoding='utf-8')
+PY
 
 EXPOSE 5002
-
-CMD ["tts-server", "--model_name", "tts_models/multilingual/multi-dataset/xtts_v2", "--use_cuda", "true", "--port", "5002"]
+ENTRYPOINT ["tts-server"]
