@@ -4,13 +4,15 @@ services:
       context: .
       target: runner
     ports:
-      - "3000:3000"
+      - "45103:3000"
     env_file:
       - .env.docker
     environment:
       NODE_ENV: production
     volumes:
       - tech-pulse-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
   worker:
     build:
@@ -22,6 +24,8 @@ services:
       NODE_ENV: production
     volumes:
       - tech-pulse-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     command: ["pnpm", "worker"]
   digest:
@@ -34,23 +38,11 @@ services:
       NODE_ENV: production
     volumes:
       - tech-pulse-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     profiles:
       - digest
     command: ["pnpm", "digest"]
-  tts:
-    image: ${TTS_IMAGE:-ghcr.io/coqui-ai/tts:latest}
-    platform: ${TTS_PLATFORM:-linux/amd64}
-    env_file:
-      - .env.docker
-    environment:
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-    volumes:
-      - tech-pulse-tts:/root/.local/share/tts
-      - ./tts/voices:/voices:ro
-    restart: unless-stopped
-    command: sh -c "tts-server --model_name ${TTS_MODEL_NAME:-tts_models/multilingual/multi-dataset/xtts_v2} --use_cuda ${TTS_USE_CUDA:-true} --port ${TTS_PORT:-5002}"
 
 volumes:
   tech-pulse-data:
-  tech-pulse-tts:
