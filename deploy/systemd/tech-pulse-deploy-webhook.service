@@ -1,0 +1,18 @@
+[Unit]
+Description=Tech Pulse GitHub Deploy Webhook
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/workspace/tech-pulse
+Environment=NODE_ENV=production
+EnvironmentFile=%h/.config/tech-pulse/deploy.env
+CacheDirectory=tech-pulse
+ExecStart=/usr/bin/env node deploy/github-webhook-server.mjs
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
